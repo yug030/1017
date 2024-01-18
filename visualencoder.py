@@ -306,10 +306,12 @@ if __name__ == "__main__":
     envs = mani_skill2.vector.make(
             args.env_id, args.num_envs, obs_mode='rgbd', reward_mode='dense', control_mode=args.control_mode, # wrappers=wrappers, # camera_cfgs=cam_cfg,
     )
+    envs.is_vector_env = True
+    envs = VisualEncoder(envs, encoder='r3m')
     assert isinstance(envs.single_action_space, gym.spaces.Box), "only continuous action space is supported"
     print("Single Action Space:", envs.single_action_space)
     print("Single Observation Space:", envs.single_observation_space)
-    print("Line 303")
+    print("Line 314")
 
     agent = Agent(envs).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate)
