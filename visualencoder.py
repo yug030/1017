@@ -33,6 +33,8 @@ from gymnasium import spaces
 from torch.distributions.normal import Normal
 import tyro
 from dataclasses import dataclass
+from gymnasium import Wrapper
+from mani_skill2.vector.wrappers.sb3 import select_index_from_dict
 
 
 
@@ -84,7 +86,23 @@ class VisualEncoder(VecEnvObservationWrapper):
         ret_dict['state'] = torch.Tensor(state).to(self.device)
         ret_dict['embedding'] = vec_embedding
         return ret_dict # device may still be cuda
-    
+
+class AutoResetVecEnvWrapper(Wrapper):
+    # adapted from https://github.com/haosulab/ManiSkill2/blob/main/mani_skill2/vector/wrappers/sb3.py#L25
+    def step(self, actions):
+        vec_obs, rews, dones, truncations, infos = self.env.step(actions)
+        if not dones.any():
+            return vec_obs, rews, dones, truncations, infos
+
+        for i, done in enumerate(dones):
+            if done:
+                # NOTE: ensure that it will not be inplace modified when reset
+                infos[i]["terminal_observation"] = select_index_from_dict(vec_obs, i)
+
+        reset_indices = np.where(dones)[0]
+        vec_obs = self.env.reset(indices=reset_indices)
+        return vec_obs, rews, dones, truncations, infos
+
 @dataclass
 class Args:
     exp_name: str = os.path.basename(__file__)[: -len(".py")]
@@ -268,14 +286,11 @@ if __name__ == "__main__":
             monitor_gym=True,
             save_code=True,
         )
-    writer = SummaryWriter(log_path)
+    writer = SummaryWriter(f"runs/{run_name}")
     writer.add_text(
         "hyperparameters",
         "|param|value|\n|-|-|\n%s" % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
     )
-    import json
-    with open(f'{log_path}/args.json', 'w') as f:
-        json.dump(vars(args), f, indent=4)
 
     # TRY NOT TO MODIFY: seeding
     random.seed(args.seed)
@@ -291,6 +306,7 @@ if __name__ == "__main__":
     )
     envs.is_vector_env = True
     envs = VisualEncoder(envs, encoder='r3m')
+    envs = AutoResetVecEnvWrapper(envs)
     assert isinstance(envs.single_action_space, gym.spaces.Box), "only continuous action space is supported"
     print("Single Action Space:", envs.single_action_space)
     print("Single Observation Space:", envs.single_observation_space)
@@ -324,6 +340,7 @@ if __name__ == "__main__":
     next_done = torch.zeros(args.num_envs).to(device)
 
     for iteration in range(1, args.num_iterations + 1):
+        timeout_bonus = torch.zeros((args.num_steps, args.num_envs), device=device)
         # Annealing the rate if instructed to do so.
         if args.anneal_lr:
             frac = 1.0 - (iteration - 1.0) / args.num_iterations
@@ -356,9 +373,18 @@ if __name__ == "__main__":
                         writer.add_scalar("charts/episodic_return", info["episode"]["r"], global_step)
                         writer.add_scalar("charts/episodic_length", info["episode"]["l"], global_step)
 
+            for env_id, truncated_ in enumerate(truncations):
+                # we don't save the real next_obs if done, so we have to deal with it here
+                if truncated_:
+                    terminal_obs = process_obs_dict(info[env_id]["terminal_observation"], OBS_MODE)
+                    with torch.no_grad():
+                        terminal_value = agent.get_value(terminal_obs)
+                    timeout_bonus[step, env_id] = args.gamma * terminal_value.item()
+
         # bootstrap value if not done
         with torch.no_grad():
             next_value = agent.get_value(next_obs).reshape(1, -1)
+            rewards_ = rewards + timeout_bonus
             advantages = torch.zeros_like(rewards).to(device)
             lastgaelam = 0
             for t in reversed(range(args.num_steps)):
@@ -368,7 +394,7 @@ if __name__ == "__main__":
                 else:
                     nextnonterminal = 1.0 - dones[t + 1]
                     nextvalues = values[t + 1]
-                delta = rewards[t] + args.gamma * nextvalues * nextnonterminal - values[t]
+                delta = rewards_[t] + args.gamma * nextvalues * nextnonterminal - values[t]
                 advantages[t] = lastgaelam = delta + args.gamma * args.gae_lambda * nextnonterminal * lastgaelam
             returns = advantages + values
 
