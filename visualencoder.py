@@ -91,7 +91,7 @@ class AutoResetVecEnvWrapper(Wrapper):
     # adapted from https://github.com/haosulab/ManiSkill2/blob/main/mani_skill2/vector/wrappers/sb3.py#L25
     def step(self, actions):
         vec_obs, rews, dones, truncations, infos = self.env.step(actions)
-        if not dones.any():
+        if (not dones.any()) and (not truncations.any()):
             return vec_obs, rews, dones, truncations, infos
 
         for i, truncated_ in enumerate(truncations):
@@ -99,7 +99,14 @@ class AutoResetVecEnvWrapper(Wrapper):
                 # NOTE: ensure that it will not be inplace modified when reset
                 infos[i]["terminal_observation"] = select_index_from_dict(vec_obs, i)
 
+        for i, done_ in enumerate(dones):
+            if done_:
+                # NOTE: ensure that it will not be inplace modified when reset
+                infos[i]["terminal_observation"] = select_index_from_dict(vec_obs, i)
+
         reset_indices = np.where(dones)[0]
+        vec_obs = self.env.reset(indices=reset_indices)
+        reset_indices = np.where(truncations)[0]
         vec_obs = self.env.reset(indices=reset_indices)
         return vec_obs, rews, dones, truncations, infos
 
