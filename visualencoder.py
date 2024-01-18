@@ -379,7 +379,7 @@ if __name__ == "__main__":
             for env_id, truncated_ in enumerate(truncations):
                 # we don't save the real next_obs if done, so we have to deal with it here
                 if truncated_:
-                    terminal_obs = process_obs_dict(info[env_id]["terminal_observation"], OBS_MODE)
+                    terminal_obs = process_obs_dict(infos[env_id]["terminal_observation"], OBS_MODE)
                     with torch.no_grad():
                         terminal_value = agent.get_value(terminal_obs)
                     timeout_bonus[step, env_id] = args.gamma * terminal_value.item()
