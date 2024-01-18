@@ -94,8 +94,8 @@ class AutoResetVecEnvWrapper(Wrapper):
         if not dones.any():
             return vec_obs, rews, dones, truncations, infos
 
-        for i, done in enumerate(dones):
-            if done:
+        for i, truncated_ in enumerate(truncations):
+            if truncated_:
                 # NOTE: ensure that it will not be inplace modified when reset
                 infos[i]["terminal_observation"] = select_index_from_dict(vec_obs, i)
 
