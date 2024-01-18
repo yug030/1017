@@ -172,6 +172,9 @@ class Args:
     num_iterations: int = 0
     """the number of iterations (computed in runtime)"""
 
+    # Maniskill
+    control_mode: str = 'pd_ee_delta_pos'
+
 
 
 def flatten_space_dict_keys(d: dict, prefix=""):
