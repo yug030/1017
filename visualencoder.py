@@ -32,6 +32,8 @@ from mani_skill2.vector.vec_env import VecEnvObservationWrapper
 from gymnasium import spaces
 from torch.distributions.normal import Normal
 
+
+ALGO_NAME = "PPO"
 class VisualEncoder(VecEnvObservationWrapper):
     def __init__(self, venv, encoder):
         assert encoder == 'r3m', "Only encoder='r3m' is supported"
@@ -332,6 +334,7 @@ if __name__ == "__main__":
     global_step = 0
     start_time = time.time()
     next_obs, _ = envs.reset(seed=args.seed)
+    next_obs = process_obs_dict(next_obs, OBS_MODE)
     next_obs = torch.Tensor(next_obs).to(device)
     next_done = torch.zeros(args.num_envs).to(device)
 
@@ -356,6 +359,7 @@ if __name__ == "__main__":
 
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, reward, terminations, truncations, infos = envs.step(action.cpu().numpy())
+            next_obs = process_obs_dict(next_obs, OBS_MODE)
             next_done = np.logical_or(terminations, truncations)
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(next_done).to(device)
