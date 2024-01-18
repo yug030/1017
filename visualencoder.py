@@ -264,7 +264,7 @@ if __name__ == "__main__":
             entity=args.wandb_entity,
             sync_tensorboard=True,
             config=vars(args),
-            name=log_name.replace(os.path.sep, "__"),
+            name=run_name,
             monitor_gym=True,
             save_code=True,
         )
