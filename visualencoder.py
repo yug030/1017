@@ -31,6 +31,9 @@ from mani_skill2.vector.vec_env import VecEnvObservationWrapper
 # from gym.core import Wrapper, ObservationWrapper
 from gymnasium import spaces
 from torch.distributions.normal import Normal
+import tyro
+from dataclasses import dataclass
+
 
 
 ALGO_NAME = "PPO"
@@ -82,94 +85,76 @@ class VisualEncoder(VecEnvObservationWrapper):
         ret_dict['embedding'] = vec_embedding
         return ret_dict # device may still be cuda
     
-def parse_args():
-    # fmt: off
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--exp-name", type=str, default=None,
-        help="the name of this experiment")
-    parser.add_argument("--seed", type=int, default=1,
-        help="seed of the experiment")
-    parser.add_argument("--torch-deterministic", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
-        help="if toggled, `torch.backends.cudnn.deterministic=False`")
-    parser.add_argument("--cuda", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
-        help="if toggled, cuda will be enabled by default")
-    parser.add_argument("--track", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
-        help="if toggled, this experiment will be tracked with Weights and Biases")
-    parser.add_argument("--wandb-project-name", type=str, default="ManiSkill2-dev",
-        help="the wandb's project name")
-    parser.add_argument("--wandb-entity", type=str, default=None,
-        help="the entity (team) of wandb's project")
-    parser.add_argument("--capture-video", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
-        help="weather to capture videos of the agent performances (check out `videos` folder)")
+@dataclass
+class Args:
+    exp_name: str = os.path.basename(__file__)[: -len(".py")]
+    """the name of this experiment"""
+    seed: int = 1
+    """seed of the experiment"""
+    torch_deterministic: bool = True
+    """if toggled, `torch.backends.cudnn.deterministic=False`"""
+    cuda: bool = True
+    """if toggled, cuda will be enabled by default"""
+    track: bool = False
+    """if toggled, this experiment will be tracked with Weights and Biases"""
+    wandb_project_name: str = "cleanRL"
+    """the wandb's project name"""
+    wandb_entity: str = None
+    """the entity (team) of wandb's project"""
+    capture_video: bool = False
+    """whether to capture videos of the agent performances (check out `videos` folder)"""
+    save_model: bool = False
+    """whether to save model into the `runs/{run_name}` folder"""
+    upload_model: bool = False
+    """whether to upload the saved model to huggingface"""
+    hf_entity: str = ""
+    """the user or org name of the model repository from the Hugging Face Hub"""
 
     # Algorithm specific arguments
-    parser.add_argument("--env-id", type=str, default="PickCube-v3",
-        help="the id of the environment")
-    parser.add_argument("--total-timesteps", type=int, default=20_000_000,
-        help="total timesteps of the experiments")
-    parser.add_argument("--learning-rate", type=float, default=3e-4,
-        help="the learning rate of the optimizer")
-    parser.add_argument("--num-envs", type=int, default=16,
-        help="the number of parallel game environments")
-    parser.add_argument("--num-steps-per-collect", type=int, default=4000, # this hp is pretty important
-        help="the number of steps to run in all environment in total per policy rollout")
-    parser.add_argument("--anneal-lr", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
-        help="Toggle learning rate annealing for policy and value networks")
-    parser.add_argument("--gae", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
-        help="Use GAE for advantage computation")
-    parser.add_argument("--gamma", type=float, default=0.8, # important
-        help="the discount factor gamma")
-    parser.add_argument("--gae-lambda", type=float, default=0.9,
-        help="the lambda for the general advantage estimation")
-    parser.add_argument("--minibatch-size", type=int, default=400,
-        help="the size of mini-batches")
-    parser.add_argument("--num-steps-per-update", type=float, default=20, # should be tuned based on sim time and tranining time
-        help="the ratio between env steps and num of gradient updates, lower means more updates")
-    parser.add_argument("--norm-adv", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
-        help="Toggles advantages normalization")
-    parser.add_argument("--clip-coef", type=float, default=0.2,
-        help="the surrogate clipping coefficient")
-    parser.add_argument("--clip-vloss", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
-        help="Toggles whether or not to use a clipped loss for the value function, as per the paper.")
-    parser.add_argument("--ent-coef", type=float, default=0.0,
-        help="coefficient of the entropy")
-    parser.add_argument("--vf-coef", type=float, default=0.5,
-        help="coefficient of the value function")
-    parser.add_argument("--max-grad-norm", type=float, default=0.5,
-        help="the maximum norm for the gradient clipping")
-    parser.add_argument("--target-kl", type=float, default=0.2,
-        help="the target KL divergence threshold")
-    parser.add_argument("--critic-warmup-epochs", type=int, default=0)
+    env_id: str = "HalfCheetah-v4"
+    """the id of the environment"""
+    total_timesteps: int = 1000000
+    """total timesteps of the experiments"""
+    learning_rate: float = 3e-4
+    """the learning rate of the optimizer"""
+    num_envs: int = 1
+    """the number of parallel game environments"""
+    num_steps: int = 2048
+    """the number of steps to run in each environment per policy rollout"""
+    anneal_lr: bool = True
+    """Toggle learning rate annealing for policy and value networks"""
+    gamma: float = 0.99
+    """the discount factor gamma"""
+    gae_lambda: float = 0.95
+    """the lambda for the general advantage estimation"""
+    num_minibatches: int = 32
+    """the number of mini-batches"""
+    update_epochs: int = 10
+    """the K epochs to update the policy"""
+    norm_adv: bool = True
+    """Toggles advantages normalization"""
+    clip_coef: float = 0.2
+    """the surrogate clipping coefficient"""
+    clip_vloss: bool = True
+    """Toggles whether or not to use a clipped loss for the value function, as per the paper."""
+    ent_coef: float = 0.0
+    """coefficient of the entropy"""
+    vf_coef: float = 0.5
+    """coefficient of the value function"""
+    max_grad_norm: float = 0.5
+    """the maximum norm for the gradient clipping"""
+    target_kl: float = None
+    """the target KL divergence threshold"""
 
-    parser.add_argument("--output-dir", type=str, default='output')
-    parser.add_argument("--eval-freq", type=int, default=200_000)
-    parser.add_argument("--num-eval-episodes", type=int, default=10)
-    parser.add_argument("--num-eval-envs", type=int, default=1)
-    parser.add_argument("--log-freq", type=int, default=10000)
-    parser.add_argument("--sync-venv", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True)
-    parser.add_argument("--rew-norm", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True)
-    parser.add_argument("--save-freq", type=int, default=200_000)
-    parser.add_argument("--value-always-bootstrap", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
-        help="in ManiSkill variable episode length setting, set to True if positive reawrd, False if negative reward.")
-    parser.add_argument("--control-mode", type=str, default='pd_ee_delta_pos')
-    parser.add_argument("--image-size", type=int, default=64,
-        help="the size of observation image, e.g. 64 means 64x64") # yuan
+    # to be filled in runtime
+    batch_size: int = 0
+    """the batch size (computed in runtime)"""
+    minibatch_size: int = 0
+    """the mini-batch size (computed in runtime)"""
+    num_iterations: int = 0
+    """the number of iterations (computed in runtime)"""
 
-    args = parser.parse_args()
-    args.algo_name = ALGO_NAME
-    args.script = __file__
-    assert args.num_steps_per_collect % args.num_envs == 0
-    args.num_steps = int(args.num_steps_per_collect // args.num_envs)
-    assert args.num_steps_per_collect % args.minibatch_size == 0
-    args.num_minibatches = int(args.num_steps_per_collect // args.minibatch_size)
-    args.num_updates_per_collect = int(args.num_steps_per_collect / args.num_steps_per_update)
-    assert args.num_updates_per_collect % args.num_minibatches == 0, f"{args.num_updates_per_collect}, {args.num_minibatches}"
-    args.update_epochs = int(args.num_updates_per_collect // args.num_minibatches)
-    args.num_eval_envs = min(args.num_eval_envs, args.num_eval_episodes)
-    assert args.num_eval_episodes % args.num_eval_envs == 0
-    args.critic_warmup_updates = args.critic_warmup_epochs * args.num_minibatches
-    # fmt: on
-    return args
+
 
 def flatten_space_dict_keys(d: dict, prefix=""):
     """Flatten a space dict by expanding its keys recursively."""
@@ -265,13 +250,11 @@ def process_obs_dict(obs_dict, OBS_MODE):
         return torch.cat([obs_dict["state"], obs_dict["embedding"]], dim=1)
 
 if __name__ == "__main__":
-    args = parse_args()
-
-    now = datetime.datetime.now().strftime("%y%m%d-%H%M%S")
-    tag = '{:s}_{:d}'.format(now, args.seed)
-    if args.exp_name: tag += '_' + args.exp_name
-    log_name = os.path.join(args.env_id, ALGO_NAME, tag)
-    log_path = os.path.join(args.output_dir, log_name)
+    args = tyro.cli(Args)
+    args.batch_size = int(args.num_envs * args.num_steps)
+    args.minibatch_size = int(args.batch_size // args.num_minibatches)
+    args.num_iterations = args.total_timesteps // args.batch_size
+    run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
 
     if args.track:
         import wandb
