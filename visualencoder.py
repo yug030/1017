@@ -97,17 +97,11 @@ class AutoResetVecEnvWrapper(Wrapper):
         for i, truncated_ in enumerate(truncations):
             if truncated_:
                 # NOTE: ensure that it will not be inplace modified when reset
-                print("======== truncated ========")
-                print(infos[i])
-                print("====== truncated end ======")
                 infos[i]["terminal_observation"] = select_index_from_dict(vec_obs, i)
 
         for i, done_ in enumerate(dones):
             if done_:
                 # NOTE: ensure that it will not be inplace modified when reset
-                print("======== done ========")
-                print(infos[i])
-                print("====== done end ======")
                 infos[i]["terminal_observation"] = select_index_from_dict(vec_obs, i)
 
         # if (dones.any()):
@@ -300,7 +294,7 @@ if __name__ == "__main__":
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
-    run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
+    run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}__gamma={args.gamma}__ent_coef={args.ent_coef}__vf_coef={args.vf_coef}"
 
     if args.track:
         import wandb
