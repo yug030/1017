@@ -399,7 +399,7 @@ if __name__ == "__main__":
                     with torch.no_grad():
                         terminal_value = agent.get_value(terminal_obs)
                     timeout_bonus[step, env_id] = args.gamma * terminal_value.item()
-            result = collect_episode_info(info, result) # yuan
+            result = collect_episode_info(infos, result) # yuan
 
         # bootstrap value if not done
         with torch.no_grad():
