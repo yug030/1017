@@ -222,21 +222,21 @@ def make_mlp(in_channels, mlp_channels, act_builder=nn.ReLU, last_act=True):
     return nn.Sequential(*module_list)
 
 class Agent(nn.Module):
-    def __init__(self, envs):
+    def __init__(self, envs, obs_shape):
         super().__init__()
         self.critic = nn.Sequential(
-            layer_init(nn.Linear(envs.embedding_size, 64)),
+            layer_init(nn.Linear(np.prod(obs_shape), 1024)),
             nn.Tanh(),
-            layer_init(nn.Linear(64, 64)),
+            layer_init(nn.Linear(1024, 512)),
             nn.Tanh(),
-            layer_init(nn.Linear(64, 1), std=1.0),
+            layer_init(nn.Linear(512, 1), std=1.0),
         )
         self.actor_mean = nn.Sequential(
-            layer_init(nn.Linear(envs.embedding_size, 64)),
+            layer_init(nn.Linear(envs.embedding_size, 1024)),
             nn.Tanh(),
-            layer_init(nn.Linear(64, 64)),
+            layer_init(nn.Linear(1024, 512)),
             nn.Tanh(),
-            layer_init(nn.Linear(64, np.prod(envs.single_action_space.shape)), std=0.01),
+            layer_init(nn.Linear(512, np.prod(envs.single_action_space.shape)), std=0.01),
         )
         self.actor_logstd = nn.Parameter(torch.zeros(1, np.prod(envs.single_action_space.shape)))
 
@@ -335,11 +335,6 @@ if __name__ == "__main__":
     print("Single Observation Space:", envs.single_observation_space)
     print("Line 314")
 
-    agent = Agent(envs).to(device)
-    optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate)
-
-    # ALGO Logic: Storage setup
-    # each obs is like {'image': {'rgb': (B,H,W,6), 'depth': (B,H,W,2)}, 'state': (B,D)}
     OBS_MODE = "all" # "all", "state", "image"
     if OBS_MODE == "all":
         obs_shape = (envs.embedding_size,)
@@ -347,6 +342,12 @@ if __name__ == "__main__":
         obs_shape = (envs.state_size,)
     elif OBS_MODE == "image":
         obs_shape = (envs.image_embedding_size,)
+
+    agent = Agent(envs, obs_shape).to(device)
+    optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate)
+
+    # ALGO Logic: Storage setup
+    # each obs is like {'image': {'rgb': (B,H,W,6), 'depth': (B,H,W,2)}, 'state': (B,D)}
     obs = torch.zeros((args.num_steps, args.num_envs) + obs_shape).to(device)
     actions = torch.zeros((args.num_steps, args.num_envs) + envs.single_action_space.shape).to(device)
     logprobs = torch.zeros((args.num_steps, args.num_envs)).to(device)
