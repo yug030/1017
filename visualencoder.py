@@ -77,7 +77,7 @@ class VisualEncoder(VecEnvObservationWrapper):
         vec_image_2 = vec_image_2.to(self.device)
         vec_embedding_1 = self.model(vec_image_1).detach() # (numenv, self.embedding_size)
         vec_embedding_2 = self.model(vec_image_2).detach() # (numenv, self.embedding_size)
-        vec_embedding = torch.cat([vec_embedding_1, vec_embedding_2], dim=1)
+        vec_embedding = torch.cat([vec_embedding_1, vec_embedding_2], dim=-1)
         ret_dict = {}
         state = np.hstack([
             flatten_state_dict(obs["agent"]),
@@ -282,7 +282,7 @@ def process_obs_dict(obs_dict, OBS_MODE):
     elif OBS_MODE == "image":
         return obs_dict["embedding"]
     elif OBS_MODE == "all":
-        return torch.cat([obs_dict["state"], obs_dict["embedding"]], dim=1)
+        return torch.cat([obs_dict["state"], obs_dict["embedding"]], dim=-1)
 
 if __name__ == "__main__":
     args = tyro.cli(Args)
