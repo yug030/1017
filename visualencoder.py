@@ -104,14 +104,14 @@ class AutoResetVecEnvWrapper(Wrapper):
                 # NOTE: ensure that it will not be inplace modified when reset
                 infos[i]["terminal_observation"] = select_index_from_dict(vec_obs, i)
 
-        if (not dones.any()):
+        if (dones.any()):
             print("======LOOK========")
             print(dones, np.where(dones)[0])
             print("======LOOK========")
         reset_indices = np.where(dones)[0]
-        vec_obs = self.env.reset(indices=reset_indices)
+        vec_obs, _ = self.env.reset(indices=reset_indices)
         reset_indices = np.where(truncations)[0]
-        vec_obs = self.env.reset(indices=reset_indices)
+        vec_obs, _ = self.env.reset(indices=reset_indices)
         return vec_obs, rews, dones, truncations, infos
 
 @dataclass
@@ -348,7 +348,7 @@ if __name__ == "__main__":
      # TRY NOT TO MODIFY: start the game
     global_step = 0
     start_time = time.time()
-    next_obs, _ = envs.reset(seed=args.seed)
+    next_obs, _ = envs.reset(seed=args.seed, indices=np.arange(2))
     next_obs = process_obs_dict(next_obs, OBS_MODE)
     next_obs = torch.Tensor(next_obs).to(device)
     next_done = torch.zeros(args.num_envs).to(device)
