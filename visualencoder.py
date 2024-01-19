@@ -104,6 +104,10 @@ class AutoResetVecEnvWrapper(Wrapper):
                 # NOTE: ensure that it will not be inplace modified when reset
                 infos[i]["terminal_observation"] = select_index_from_dict(vec_obs, i)
 
+        if (not dones.any()):
+            print("======LOOK========")
+            print(dones, np.where(dones)[0])
+            print("======LOOK========")
         reset_indices = np.where(dones)[0]
         vec_obs = self.env.reset(indices=reset_indices)
         reset_indices = np.where(truncations)[0]
