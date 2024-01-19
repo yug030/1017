@@ -394,10 +394,6 @@ if __name__ == "__main__":
             for env_id, ended_ in enumerate(next_done):
                 # we don't save the real next_obs if done, so we have to deal with it here
                 if ended_:
-                    print("=======")
-                    print(iteration, step)
-                    print(infos[env_id])
-                    print("=======")
                     terminal_obs = process_obs_dict(infos[env_id]["terminal_observation"], OBS_MODE)
                     with torch.no_grad():
                         terminal_value = agent.get_value(terminal_obs)
