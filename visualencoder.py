@@ -107,6 +107,11 @@ class AutoResetVecEnvWrapper(Wrapper):
         if (dones.any()):
             print("======LOOK========")
             print(dones, np.where(dones)[0])
+            print(type(self.env))
+            try:
+                print(type(self.envs))
+            except:
+                print("no envs")
             print("======LOOK========")
         reset_indices = np.where(dones)[0]
         vec_obs, _ = self.env.reset(indices=reset_indices)
