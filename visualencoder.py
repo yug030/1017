@@ -257,12 +257,12 @@ def collect_episode_info(info, result=None):
         result = defaultdict(list)
     for item in info:
         if "episode" in item.keys():
-            print(item['episode'])
-            print("================")
-            print(item['success'])
-            print("================")
-            print(f"HELLO, {item['episode']}, {item['success']}")
-            print(f"global_step={global_step}, episodic_return={item['episode']['r']:.4f}, success={item['success']}")
+            # print(item['episode'])
+            # print("================")
+            # print(item['success'])
+            # print("================")
+            # print(f"HELLO, {item['episode']}, {item['success']}")
+            print(f"global_step={global_step}, episodic_return={item['episode']['r']}, success={item['success']}")
             result['return'].append(item['episode']['r'])
             result['len'].append(item["episode"]["l"])
             result['success'].append(item['success'])
