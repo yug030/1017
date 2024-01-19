@@ -327,6 +327,7 @@ if __name__ == "__main__":
     envs = VisualEncoder(envs, encoder='r3m')
     envs = AutoResetVecEnvWrapper(envs)
     assert isinstance(envs.single_action_space, gym.spaces.Box), "only continuous action space is supported"
+    print("Envs type:", type(envs))
     print("Single Action Space:", envs.single_action_space)
     print("Single Observation Space:", envs.single_observation_space)
     print("Line 314")
@@ -353,7 +354,7 @@ if __name__ == "__main__":
      # TRY NOT TO MODIFY: start the game
     global_step = 0
     start_time = time.time()
-    next_obs, _ = envs.reset(seed=args.seed, indices=np.arange(2))
+    next_obs, _ = envs.reset(seed=args.seed)
     next_obs = process_obs_dict(next_obs, OBS_MODE)
     next_obs = torch.Tensor(next_obs).to(device)
     next_done = torch.zeros(args.num_envs).to(device)
