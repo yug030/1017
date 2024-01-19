@@ -356,6 +356,7 @@ if __name__ == "__main__":
     next_obs = process_obs_dict(next_obs, OBS_MODE)
     next_obs = torch.Tensor(next_obs).to(device)
     next_done = torch.zeros(args.num_envs).to(device)
+    result = defaultdict(list) # yuan
 
     for iteration in range(1, args.num_iterations + 1):
         timeout_bonus = torch.zeros((args.num_steps, args.num_envs), device=device)
@@ -398,6 +399,7 @@ if __name__ == "__main__":
                     with torch.no_grad():
                         terminal_value = agent.get_value(terminal_obs)
                     timeout_bonus[step, env_id] = args.gamma * terminal_value.item()
+            result = collect_episode_info(info, result) # yuan
 
         # bootstrap value if not done
         with torch.no_grad():
@@ -483,6 +485,11 @@ if __name__ == "__main__":
         explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
 
         # TRY NOT TO MODIFY: record rewards for plotting purposes
+        if (global_step - args.num_steps_per_collect) // args.log_freq < global_step // args.log_freq:
+            if len(result['return']) > 0:
+                for k, v in result.items():
+                    writer.add_scalar(f"train/{k}", np.mean(v), global_step)
+                result = defaultdict(list) # yuan
         writer.add_scalar("charts/learning_rate", optimizer.param_groups[0]["lr"], global_step)
         writer.add_scalar("losses/value_loss", v_loss.item(), global_step)
         writer.add_scalar("losses/policy_loss", pg_loss.item(), global_step)
