@@ -485,11 +485,10 @@ if __name__ == "__main__":
         explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
 
         # TRY NOT TO MODIFY: record rewards for plotting purposes
-        if (global_step - args.num_steps_per_collect) // args.log_freq < global_step // args.log_freq:
-            if len(result['return']) > 0:
-                for k, v in result.items():
-                    writer.add_scalar(f"train/{k}", np.mean(v), global_step)
-                result = defaultdict(list) # yuan
+        if len(result['return']) > 0:
+            for k, v in result.items():
+                writer.add_scalar(f"train/{k}", np.mean(v), global_step)
+            result = defaultdict(list) # yuan
         writer.add_scalar("charts/learning_rate", optimizer.param_groups[0]["lr"], global_step)
         writer.add_scalar("losses/value_loss", v_loss.item(), global_step)
         writer.add_scalar("losses/policy_loss", pg_loss.item(), global_step)
