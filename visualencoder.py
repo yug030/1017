@@ -319,7 +319,7 @@ if __name__ == "__main__":
 
     wrappers = [gym.wrappers.RecordEpisodeStatistics, gym.wrappers.ClipAction,]
     envs = mani_skill2.vector.make(
-            args.env_id, args.num_envs, obs_mode='rgbd', reward_mode='dense', control_mode=args.control_mode, # wrappers=wrappers, # camera_cfgs=cam_cfg,
+            args.env_id, args.num_envs, obs_mode='rgbd', reward_mode='dense', control_mode=args.control_mode, wrappers=wrappers, # camera_cfgs=cam_cfg,
     )
     envs.is_vector_env = True
     envs = VisualEncoder(envs, encoder='r3m')
