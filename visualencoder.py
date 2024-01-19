@@ -97,11 +97,17 @@ class AutoResetVecEnvWrapper(Wrapper):
         for i, truncated_ in enumerate(truncations):
             if truncated_:
                 # NOTE: ensure that it will not be inplace modified when reset
+                print("======== truncated ========")
+                print(infos[i])
+                print("====== truncated end ======")
                 infos[i]["terminal_observation"] = select_index_from_dict(vec_obs, i)
 
         for i, done_ in enumerate(dones):
             if done_:
                 # NOTE: ensure that it will not be inplace modified when reset
+                print("======== done ========")
+                print(infos[i])
+                print("====== done end ======")
                 infos[i]["terminal_observation"] = select_index_from_dict(vec_obs, i)
 
         # if (dones.any()):
