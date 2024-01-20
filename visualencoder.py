@@ -151,15 +151,15 @@ class Args:
     """the learning rate of the optimizer"""
     num_envs: int = 2
     """the number of parallel game environments"""
-    num_steps: int = 2048
+    num_steps: int = 250
     """the number of steps to run in each environment per policy rollout"""
     anneal_lr: bool = True
     """Toggle learning rate annealing for policy and value networks"""
-    gamma: float = 0.99
+    gamma: float = 0.8
     """the discount factor gamma"""
     gae_lambda: float = 0.95
     """the lambda for the general advantage estimation"""
-    num_minibatches: int = 32
+    num_minibatches: int = 8
     """the number of mini-batches"""
     update_epochs: int = 10
     """the K epochs to update the policy"""
@@ -175,7 +175,7 @@ class Args:
     """coefficient of the value function"""
     max_grad_norm: float = 0.5
     """the maximum norm for the gradient clipping"""
-    target_kl: float = None
+    target_kl: float = 0.2
     """the target KL divergence threshold"""
 
     # to be filled in runtime
