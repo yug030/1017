@@ -28,7 +28,7 @@ import mani_skill2.envs
 from mani_skill2.utils.common import flatten_state_dict, flatten_dict_space_keys
 from mani_skill2.utils.wrappers import RecordEpisode
 from mani_skill2.vector.vec_env import VecEnvObservationWrapper
-# from gym.core import Wrapper, ObservationWrapper
+# from mani_skill2.vector.VisualEncoder import VisualEncoder
 from gymnasium import spaces
 from torch.distributions.normal import Normal
 import tyro
@@ -39,6 +39,54 @@ from mani_skill2.vector.wrappers.sb3 import select_index_from_dict
 
 
 ALGO_NAME = "PPO"
+# class VisualEncoder(VecEnvObservationWrapper):
+#     def __init__(self, venv, encoder):
+#         assert encoder == 'r3m', "Only encoder='r3m' is supported"
+#         from r3m import load_r3m
+#         import torchvision.transforms as T
+#         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#         self.num_images = len(venv.observation_space['image'])
+#         self.model = load_r3m("resnet18") # resnet18, resnet34
+#         self.model.eval()
+#         self.model.to(self.device)
+#         self.transforms = T.Compose([T.Resize((224, 224)), ]) # HWC -> CHW [0, 1]
+#         self.single_image_embedding_size = 512
+#         self.image_embedding_size = self.single_image_embedding_size * self.num_images
+#         self.state_size = 0
+#         for k in ['agent', 'extra']:
+#             self.state_size += sum([v.shape[0] for v in flatten_dict_space_keys(venv.single_observation_space[k]).spaces.values()])
+#         print("state_size:", self.state_size)
+
+#         new_single_space_dict = spaces.Dict({
+#             'state': spaces.Box(-float("inf"), float("inf"), shape=(self.state_size,), dtype=np.float32),
+#             'embedding': spaces.Box(-float("inf"), float("inf"), shape=(self.image_embedding_size,), dtype=np.float32),
+#         })
+#         print("new_single_space_dict:", new_single_space_dict)
+#         self.embedding_size = self.image_embedding_size + self.state_size
+#         super().__init__(venv, new_single_space_dict)
+
+#     @torch.no_grad()
+#     def observation(self, obs):
+#         # assume a structure of obs['image']['base_camera']['rgb']
+#         # simplified
+#         vec_image_1 = torch.Tensor(obs['image']['base_camera']['rgb']) # (numenv, H, W, 3), [0, 255] uint8
+#         vec_image_2 = torch.Tensor(obs['image']['hand_camera']['rgb']) # (numenv, H, W, 3), [0, 255] uint8
+#         vec_image_1 = self.transforms(vec_image_1.permute(0, 3, 1, 2)) # (numenv, 3, 224, 224)
+#         vec_image_2 = self.transforms(vec_image_2.permute(0, 3, 1, 2)) # (numenv, 3, 224, 224)
+#         vec_image_1 = vec_image_1.to(self.device)
+#         vec_image_2 = vec_image_2.to(self.device)
+#         vec_embedding_1 = self.model(vec_image_1).detach() # (numenv, self.embedding_size)
+#         vec_embedding_2 = self.model(vec_image_2).detach() # (numenv, self.embedding_size)
+#         vec_embedding = torch.cat([vec_embedding_1, vec_embedding_2], dim=-1)
+#         ret_dict = {}
+#         state = np.hstack([
+#             flatten_state_dict(obs["agent"]),
+#             flatten_state_dict(obs["extra"]),
+#         ])
+#         ret_dict['state'] = torch.Tensor(state).to(self.device)
+#         ret_dict['embedding'] = vec_embedding
+#         return ret_dict # device may still be cuda
+
 class VisualEncoder(VecEnvObservationWrapper):
     def __init__(self, venv, encoder):
         assert encoder == 'r3m', "Only encoder='r3m' is supported"
@@ -49,19 +97,18 @@ class VisualEncoder(VecEnvObservationWrapper):
         self.model = load_r3m("resnet18") # resnet18, resnet34
         self.model.eval()
         self.model.to(self.device)
-        self.transforms = T.Compose([T.Resize((224, 224)), ]) # HWC -> CHW [0, 1]
-        self.single_image_embedding_size = 512
+        self.transforms = T.Compose([T.Resize((224, 224)), ]) # HWC -> CHW
+        self.single_image_embedding_size = 512 # for resnet18
         self.image_embedding_size = self.single_image_embedding_size * self.num_images
+
         self.state_size = 0
         for k in ['agent', 'extra']:
             self.state_size += sum([v.shape[0] for v in flatten_dict_space_keys(venv.single_observation_space[k]).spaces.values()])
-        print("state_size:", self.state_size)
 
         new_single_space_dict = spaces.Dict({
             'state': spaces.Box(-float("inf"), float("inf"), shape=(self.state_size,), dtype=np.float32),
             'embedding': spaces.Box(-float("inf"), float("inf"), shape=(self.image_embedding_size,), dtype=np.float32),
         })
-        print("new_single_space_dict:", new_single_space_dict)
         self.embedding_size = self.image_embedding_size + self.state_size
         super().__init__(venv, new_single_space_dict)
 
@@ -69,23 +116,23 @@ class VisualEncoder(VecEnvObservationWrapper):
     def observation(self, obs):
         # assume a structure of obs['image']['base_camera']['rgb']
         # simplified
-        vec_image_1 = torch.Tensor(obs['image']['base_camera']['rgb']) # (numenv, H, W, 3), [0, 255] uint8
-        vec_image_2 = torch.Tensor(obs['image']['hand_camera']['rgb']) # (numenv, H, W, 3), [0, 255] uint8
-        vec_image_1 = self.transforms(vec_image_1.permute(0, 3, 1, 2)) # (numenv, 3, 224, 224)
-        vec_image_2 = self.transforms(vec_image_2.permute(0, 3, 1, 2)) # (numenv, 3, 224, 224)
-        vec_image_1 = vec_image_1.to(self.device)
-        vec_image_2 = vec_image_2.to(self.device)
-        vec_embedding_1 = self.model(vec_image_1).detach() # (numenv, self.embedding_size)
-        vec_embedding_2 = self.model(vec_image_2).detach() # (numenv, self.embedding_size)
-        vec_embedding = torch.cat([vec_embedding_1, vec_embedding_2], dim=-1)
+        vec_img_embeddings_list = []
+        for camera in ['base_camera', 'hand_camera']:
+            vec_image = torch.Tensor(obs['image'][camera]['rgb']) # (numenv, H, W, 3), [0, 255] uint8
+            vec_image = self.transforms(vec_image.permute(0, 3, 1, 2)) # (numenv, 3, 224, 224)
+            vec_image = vec_image.to(self.device)
+            vec_img_embedding = self.model(vec_image).detach() # (numenv, self.single_image_embedding_size)
+            vec_img_embeddings_list.append(vec_img_embedding)
+
+        vec_embedding = torch.cat(vec_img_embeddings_list, dim=-1)  # (numenv, self.image_embedding_size)
         ret_dict = {}
         state = np.hstack([
             flatten_state_dict(obs["agent"]),
             flatten_state_dict(obs["extra"]),
         ])
-        ret_dict['state'] = torch.Tensor(state).to(self.device)
+        ret_dict['state'] = torch.Tensor(state).to(self.device)  # (numenv, self.state_size)
         ret_dict['embedding'] = vec_embedding
-        return ret_dict # device may still be cuda
+        return ret_dict # device is cuda
 
 class AutoResetVecEnvWrapper(Wrapper):
     # adapted from https://github.com/haosulab/ManiSkill2/blob/main/mani_skill2/vector/wrappers/sb3.py#L25
@@ -145,11 +192,11 @@ class Args:
     # Algorithm specific arguments
     env_id: str = "HalfCheetah-v4"
     """the id of the environment"""
-    total_timesteps: int = 20_000_000
+    total_timesteps: int = 5_000_000
     """total timesteps of the experiments"""
     learning_rate: float = 3e-4
     """the learning rate of the optimizer"""
-    num_envs: int = 2
+    num_envs: int = 16
     """the number of parallel game environments"""
     num_steps: int = 250
     """the number of steps to run in each environment per policy rollout"""
@@ -157,11 +204,11 @@ class Args:
     """Toggle learning rate annealing for policy and value networks"""
     gamma: float = 0.8
     """the discount factor gamma"""
-    gae_lambda: float = 0.95
+    gae_lambda: float = 0.9
     """the lambda for the general advantage estimation"""
-    num_minibatches: int = 8
+    num_minibatches: int = 16
     """the number of mini-batches"""
-    update_epochs: int = 10
+    update_epochs: int = 20
     """the K epochs to update the policy"""
     norm_adv: bool = True
     """Toggles advantages normalization"""
@@ -188,6 +235,9 @@ class Args:
 
     # Maniskill
     control_mode: str = 'pd_ee_delta_pos'
+
+    observation_mode: str = "both"
+    """After VisualEncoder, obs will be a dict containing keys 'state' and 'image'. Use 'both' to include both as input to process_obs_dict()."""
 
 
 
@@ -268,25 +318,26 @@ def collect_episode_info(info, result=None):
             result['success'].append(item['success'])
     return result
 
-def evaluate(n, agent, eval_envs, device):
-    print('======= Evaluation Starts =========')
-    agent.eval()
-    result = defaultdict(list)
-    obs = eval_envs.reset()
-    while len(result['return']) < n:
-        with torch.no_grad():
-            action = agent.get_eval_action(to_tensor(obs))
-        obs, rew, done, info = eval_envs.step(action.cpu().numpy())
-        collect_episode_info(info, result)
-    print('======= Evaluation Ends =========')
-    return result
+# def evaluate(n, agent, eval_envs, device):
+#     print('======= Evaluation Starts =========')
+#     agent.eval()
+#     result = defaultdict(list)
+#     obs = eval_envs.reset()
+#     while len(result['return']) < n:
+#         with torch.no_grad():
+#             action = agent.get_eval_action(to_tensor(obs))
+#         obs, rew, done, info = eval_envs.step(action.cpu().numpy())
+#         collect_episode_info(info, result)
+#     print('======= Evaluation Ends =========')
+#     return result
 
-def process_obs_dict(obs_dict, OBS_MODE):
-    if OBS_MODE == "state":
+# process the vector env operation based on args.observation_mode. This is called after receiving the obs dict from vector env.
+def process_obs_dict(obs_dict, observation_mode):
+    if observation_mode == "state":
         return obs_dict["state"]
-    elif OBS_MODE == "image":
+    elif observation_mode == "image":
         return obs_dict["embedding"]
-    elif OBS_MODE == "all":
+    elif observation_mode == "all":
         return torch.cat([obs_dict["state"], obs_dict["embedding"]], dim=-1)
 
 if __name__ == "__main__":
@@ -335,12 +386,12 @@ if __name__ == "__main__":
     print("Single Observation Space:", envs.single_observation_space)
     print("Line 314")
 
-    OBS_MODE = "all" # "all", "state", "image"
-    if OBS_MODE == "all":
+    assert args.observation_mode in ['both', 'state', 'image']
+    if args.observation_mode == "both":
         obs_shape = (envs.embedding_size,)
-    elif OBS_MODE == "state":
+    elif args.observation_mode == "state":
         obs_shape = (envs.state_size,)
-    elif OBS_MODE == "image":
+    elif args.observation_mode == "image":
         obs_shape = (envs.image_embedding_size,)
 
     agent = Agent(envs, obs_shape).to(device)
@@ -359,7 +410,7 @@ if __name__ == "__main__":
     global_step = 0
     start_time = time.time()
     next_obs, _ = envs.reset(seed=args.seed)
-    next_obs = process_obs_dict(next_obs, OBS_MODE)
+    next_obs = process_obs_dict(next_obs, args.observation_mode)
     next_obs = torch.Tensor(next_obs).to(device)
     next_done = torch.zeros(args.num_envs).to(device)
     result = defaultdict(list) # yuan
@@ -386,7 +437,7 @@ if __name__ == "__main__":
 
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, reward, terminations, truncations, infos = envs.step(action.cpu().numpy())
-            next_obs = process_obs_dict(next_obs, OBS_MODE)
+            next_obs = process_obs_dict(next_obs, args.observation_mode)
             next_done = np.logical_or(terminations, truncations)
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(next_done).to(device)
@@ -401,7 +452,7 @@ if __name__ == "__main__":
             for env_id, ended_ in enumerate(next_done):
                 # we don't save the real next_obs if done, so we have to deal with it here
                 if ended_:
-                    terminal_obs = process_obs_dict(infos[env_id]["terminal_observation"], OBS_MODE)
+                    terminal_obs = process_obs_dict(infos[env_id]["terminal_observation"], args.observation_mode)
                     with torch.no_grad():
                         terminal_value = agent.get_value(terminal_obs)
                     timeout_bonus[step, env_id] = args.gamma * terminal_value.item()
