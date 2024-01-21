@@ -39,53 +39,6 @@ from mani_skill2.vector.wrappers.sb3 import select_index_from_dict
 
 
 ALGO_NAME = "PPO"
-# class VisualEncoder(VecEnvObservationWrapper):
-#     def __init__(self, venv, encoder):
-#         assert encoder == 'r3m', "Only encoder='r3m' is supported"
-#         from r3m import load_r3m
-#         import torchvision.transforms as T
-#         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-#         self.num_images = len(venv.observation_space['image'])
-#         self.model = load_r3m("resnet18") # resnet18, resnet34
-#         self.model.eval()
-#         self.model.to(self.device)
-#         self.transforms = T.Compose([T.Resize((224, 224)), ]) # HWC -> CHW [0, 1]
-#         self.single_image_embedding_size = 512
-#         self.image_embedding_size = self.single_image_embedding_size * self.num_images
-#         self.state_size = 0
-#         for k in ['agent', 'extra']:
-#             self.state_size += sum([v.shape[0] for v in flatten_dict_space_keys(venv.single_observation_space[k]).spaces.values()])
-#         print("state_size:", self.state_size)
-
-#         new_single_space_dict = spaces.Dict({
-#             'state': spaces.Box(-float("inf"), float("inf"), shape=(self.state_size,), dtype=np.float32),
-#             'embedding': spaces.Box(-float("inf"), float("inf"), shape=(self.image_embedding_size,), dtype=np.float32),
-#         })
-#         print("new_single_space_dict:", new_single_space_dict)
-#         self.embedding_size = self.image_embedding_size + self.state_size
-#         super().__init__(venv, new_single_space_dict)
-
-#     @torch.no_grad()
-#     def observation(self, obs):
-#         # assume a structure of obs['image']['base_camera']['rgb']
-#         # simplified
-#         vec_image_1 = torch.Tensor(obs['image']['base_camera']['rgb']) # (numenv, H, W, 3), [0, 255] uint8
-#         vec_image_2 = torch.Tensor(obs['image']['hand_camera']['rgb']) # (numenv, H, W, 3), [0, 255] uint8
-#         vec_image_1 = self.transforms(vec_image_1.permute(0, 3, 1, 2)) # (numenv, 3, 224, 224)
-#         vec_image_2 = self.transforms(vec_image_2.permute(0, 3, 1, 2)) # (numenv, 3, 224, 224)
-#         vec_image_1 = vec_image_1.to(self.device)
-#         vec_image_2 = vec_image_2.to(self.device)
-#         vec_embedding_1 = self.model(vec_image_1).detach() # (numenv, self.embedding_size)
-#         vec_embedding_2 = self.model(vec_image_2).detach() # (numenv, self.embedding_size)
-#         vec_embedding = torch.cat([vec_embedding_1, vec_embedding_2], dim=-1)
-#         ret_dict = {}
-#         state = np.hstack([
-#             flatten_state_dict(obs["agent"]),
-#             flatten_state_dict(obs["extra"]),
-#         ])
-#         ret_dict['state'] = torch.Tensor(state).to(self.device)
-#         ret_dict['embedding'] = vec_embedding
-#         return ret_dict # device may still be cuda
 
 class VisualEncoder(VecEnvObservationWrapper):
     def __init__(self, venv, encoder):
@@ -151,15 +104,6 @@ class AutoResetVecEnvWrapper(Wrapper):
                 # NOTE: ensure that it will not be inplace modified when reset
                 infos[i]["terminal_observation"] = select_index_from_dict(vec_obs, i)
 
-        # if (dones.any()):
-        #     print("======LOOK========")
-        #     print(dones, np.where(dones)[0])
-        #     print(type(self.env))
-        #     try:
-        #         print(type(self.envs))
-        #     except:
-        #         print("no envs")
-        #     print("======LOOK========")
         reset_indices = np.where(np.logical_or(dones, truncations))[0]
         vec_obs, _ = self.env.reset(indices=reset_indices)
         return vec_obs, rews, dones, truncations, infos
@@ -174,9 +118,9 @@ class Args:
     """if toggled, `torch.backends.cudnn.deterministic=False`"""
     cuda: bool = True
     """if toggled, cuda will be enabled by default"""
-    track: bool = False
+    track: bool = True
     """if toggled, this experiment will be tracked with Weights and Biases"""
-    wandb_project_name: str = "cleanRL"
+    wandb_project_name: str = "VisualEncoder"
     """the wandb's project name"""
     wandb_entity: str = None
     """the entity (team) of wandb's project"""
@@ -307,29 +251,11 @@ def collect_episode_info(info, result=None):
         result = defaultdict(list)
     for item in info:
         if "episode" in item.keys():
-            # print(item['episode'])
-            # print("================")
-            # print(item['success'])
-            # print("================")
-            # print(f"HELLO, {item['episode']}, {item['success']}")
             print(f"global_step={global_step}, episodic_return={item['episode']['r']}, success={item['success']}")
             result['return'].append(item['episode']['r'])
             result['len'].append(item["episode"]["l"])
             result['success'].append(item['success'])
     return result
-
-# def evaluate(n, agent, eval_envs, device):
-#     print('======= Evaluation Starts =========')
-#     agent.eval()
-#     result = defaultdict(list)
-#     obs = eval_envs.reset()
-#     while len(result['return']) < n:
-#         with torch.no_grad():
-#             action = agent.get_eval_action(to_tensor(obs))
-#         obs, rew, done, info = eval_envs.step(action.cpu().numpy())
-#         collect_episode_info(info, result)
-#     print('======= Evaluation Ends =========')
-#     return result
 
 # process the vector env operation based on args.observation_mode. This is called after receiving the obs dict from vector env.
 def process_obs_dict(obs_dict, observation_mode):
@@ -384,7 +310,6 @@ if __name__ == "__main__":
     print("Envs type:", type(envs))
     print("Single Action Space:", envs.single_action_space)
     print("Single Observation Space:", envs.single_observation_space)
-    print("Line 314")
 
     assert args.observation_mode in ['both', 'state', 'image']
     if args.observation_mode == "both":
