@@ -337,7 +337,7 @@ def process_obs_dict(obs_dict, observation_mode):
         return obs_dict["state"]
     elif observation_mode == "image":
         return obs_dict["embedding"]
-    elif observation_mode == "all":
+    elif observation_mode == "both":
         return torch.cat([obs_dict["state"], obs_dict["embedding"]], dim=-1)
 
 if __name__ == "__main__":
